@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 import streamlit as st
 from PIL import Image
+from streamlit_card import card
 
 from core import PROJECT_ROOT
 from core.auth_engine import AuthEngine
@@ -27,7 +28,6 @@ try:
 except Exception:
     ADMIN_PIN = "1234"
 
-DASHBOARD_BG_PATH = PROJECT_ROOT / "assets" / "dashboard_bg.png"
 UNITS = ["Nos", "Kg", "Gms", "Ltr", "Ml", "Box", "Pcs", "Mtr"]
 
 # Demo rows written to data/inventory.xlsx the first time it's created (e.g.
@@ -169,25 +169,71 @@ def page_gatekeeper():
         st.error(f"Face not recognized ({pct}% match). Retake the photo or ask an admin to enroll you.")
 
 
+# Dashboard nav cards: (key, title, text, gradient, target_page, admin_redirect).
+# Enroll and Admin Panel both land on the PIN screen first (admin_redirect),
+# which then forwards to the real destination on success - Enroll keeps the
+# same PIN gate the Tkinter app had, just reachable in one tap instead of via
+# the Admin Panel submenu.
+DASHBOARD_CARDS = [
+    {
+        "key": "nav_check", "title": "\U0001F50D Check Inventory", "text": "Search & OCR scan",
+        "gradient": "linear-gradient(135deg, #2563eb, #1d4ed8)", "target_page": "check",
+    },
+    {
+        "key": "nav_keep", "title": "➕ Add / Withdraw", "text": "Stock updates",
+        "gradient": "linear-gradient(135deg, #22c55e, #d97706)", "target_page": "keep",
+    },
+    {
+        "key": "nav_enroll", "title": "\U0001F464 Enroll Manager", "text": "Face profile registry",
+        "gradient": "linear-gradient(135deg, #7c3aed, #4f46e5)", "admin_redirect": "enroll",
+    },
+    {
+        "key": "nav_admin", "title": "\U0001F510 Admin Panel", "text": "Settings & history logs",
+        "gradient": "linear-gradient(135deg, #243b55, #1b2c40)", "admin_redirect": "admin_panel",
+    },
+]
+
+
+def _nav_card(title, text, gradient, key, target_page=None, admin_redirect=None):
+    clicked = card(
+        title=title,
+        text=text,
+        image=None,
+        styles={
+            "card": {
+                "width": "100%",
+                "height": "160px",
+                "borderRadius": "16px",
+                "boxShadow": "0 6px 18px rgba(0, 0, 0, 0.25)",
+                "margin": "6px 0px",
+                "background": gradient,
+            },
+            "filter": {"backgroundColor": "rgba(0, 0, 0, 0.35)"},
+        },
+        key=key,
+    )
+    if clicked:
+        if admin_redirect:
+            st.session_state["admin_login_redirect"] = admin_redirect
+            goto("admin_login")
+        else:
+            goto(target_page)
+
+
 def page_dashboard():
     st.title("\U0001F4E6 Godown Manager")
     name = st.session_state.current_manager_name
     if name:
         st.caption(f"Signed in as **{name}**")
 
-    if DASHBOARD_BG_PATH.exists():
-        st.image(str(DASHBOARD_BG_PATH), width="stretch")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("\U0001F50D Check Inventory", type="primary", width="stretch"):
-            goto("check")
-    with col2:
-        if st.button("\U0001F510 Admin", width="stretch"):
-            goto("admin_login")
-
-    if st.button("➕ Add / Withdraw Inventory", width="stretch"):
-        goto("keep")
+    row1 = st.columns(2)
+    row2 = st.columns(2)
+    for col, spec in zip(row1 + row2, DASHBOARD_CARDS):
+        with col:
+            _nav_card(
+                spec["title"], spec["text"], spec["gradient"], spec["key"],
+                target_page=spec.get("target_page"), admin_redirect=spec.get("admin_redirect"),
+            )
 
     st.divider()
     if st.button("Logout"):
@@ -204,7 +250,7 @@ def page_admin_login():
 
     if submitted:
         if pin == ADMIN_PIN:
-            goto("admin_panel")
+            goto(st.session_state.pop("admin_login_redirect", "admin_panel"))
         else:
             st.error("Incorrect PIN")
 
