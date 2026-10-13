@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+venv/
+.venv/
+myenv/
+
+# real inventory/profile data - demo data is regenerated automatically
+data/*.xlsx
+data/*.npz
+
+# local secrets - keep secrets.toml.example as the shared template
+.streamlit/secrets.toml
